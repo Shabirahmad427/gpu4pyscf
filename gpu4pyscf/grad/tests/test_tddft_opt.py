@@ -17,6 +17,7 @@ import numpy as np
 import unittest
 import pytest
 from pyscf import scf, dft, tdscf
+from pyscf.dft import xcfun
 from pyscf.geomopt.geometric_solver import optimize
 import gpu4pyscf
 from gpu4pyscf import scf as gpu_scf
@@ -69,12 +70,14 @@ class KnownValues(unittest.TestCase):
     @pytest.mark.slow
     def test_opt_rks_tda(self):
         mf = dft.RKS(mol, xc='b3lyp').to_gpu()
+        mf._numint.libxc = xcfun
         mf.kernel()
         assert mf.converged
         td = mf.TDA().set(nstates=3)
         td.kernel()
         # TODO: store CPU results for comparison
         td_cpu = td.to_cpu()
+        td_cpu._scf._numint.libxc = xcfun
         mol_gpu = optimize(td)
         mol_cpu = optimize(td_cpu)
         assert np.linalg.norm(mol_gpu.atom_coords() - mol_cpu.atom_coords()) < 1e-4
@@ -82,6 +85,9 @@ class KnownValues(unittest.TestCase):
     @unittest.skipIf(num_devices > 1, '')
     def test_opt_df_rks_tda_pcm_1(self):
         mf = dft.RKS(mol_near_conv, xc='b3lyp').to_gpu().density_fit().PCM()
+        # TDDFT gradients need third XC derivatives; the bundled CPU LibXC
+        # may not provide them for B3LYP.
+        mf._numint.libxc = xcfun
         mf.kernel()
         assert mf.converged
         td = mf.TDA(equilibrium_solvation=True).set(nstates=4)
@@ -89,6 +95,7 @@ class KnownValues(unittest.TestCase):
         mol_gpu = optimize(td)
 
         mff = dft.RKS(mol_gpu, xc='b3lyp').to_gpu().density_fit().PCM()
+        mff._numint.libxc = xcfun
         mff.kernel()
         assert mff.converged
         tdf = mff.TDA(equilibrium_solvation=True).set(nstates=4)
@@ -101,6 +108,7 @@ class KnownValues(unittest.TestCase):
     @pytest.mark.slow
     def test_opt_rks_tda_pcm_2(self):
         mf = dft.RKS(mol_near_conv, xc='b3lyp').PCM().to_gpu()
+        mf._numint.libxc = xcfun
         mf.kernel()
         assert mf.converged
         td = mf.TDA(equilibrium_solvation=True).set(nstates=4)
@@ -110,6 +118,7 @@ class KnownValues(unittest.TestCase):
         mol_gpu = excited_grad.optimizer().kernel()
 
         mff = dft.RKS(mol_gpu, xc='b3lyp').PCM().to_gpu()
+        mff._numint.libxc = xcfun
         mff.kernel()
         assert mff.converged
         tdf = mff.TDA(equilibrium_solvation=True).set(nstates=4)
