@@ -11,11 +11,13 @@ if [[ ! -x "$PYTHON" ]]; then
     exit 2
 fi
 
+# Load the shared software runtime. The environment is isolated from ~/.local;
+# Python packages used by GPU4PySCF live in this single software location.
 if [[ -r "$ACTIVATOR" ]]; then
-    # Load the canonical native Python/CUDA environment used by the software.
     # shellcheck disable=SC1090
     source "$ACTIVATOR"
 fi
+export PYTHONNOUSERSITE=1
 
 "$PYTHON" - <<'PY'
 import sys
