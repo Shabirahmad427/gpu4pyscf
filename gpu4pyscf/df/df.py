@@ -282,9 +282,12 @@ class DF(lib.StreamObject):
         '''Reset mol and clean up relevant attributes for scanner mode'''
         if mol is not None:
             self.mol = mol
-            self.auxmol = None
-            self.intopt = None
-            self.j_engine = None
+        # ``mol`` may have been modified in place (e.g. by a geometry
+        # scanner).  The auxiliary molecule and integral helpers contain
+        # geometry-dependent data, so invalidate them on every reset.
+        self.auxmol = None
+        self.intopt = None
+        self.j_engine = None
         self._cderi = None
         self._cderi_idx = None
         self._cd_j2c = None

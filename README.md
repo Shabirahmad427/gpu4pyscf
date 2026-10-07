@@ -53,6 +53,8 @@ There shouldn't be cupy or cutensor compilation during pip install process. If y
 <repo_path>/gpu4pyscf/lib/cutensor.py:<line_number>: UserWarning: using cupy as the tensor contraction engine.
 ```
 
+GPU4PySCF SCF calculations support the default CUDA stream and blocking CuPy streams. Non-blocking CuPy streams are rejected because they can produce incorrect SCF results.
+
 Features
 --------
 - Density fitting scheme and direct SCF scheme;
