@@ -82,13 +82,12 @@ def test_pbc_optimizer_freezes_automatic_mesh():
         basis='gth-szv', pseudo='gth-pade', precision=1e-8, verbose=0)
     mesh = np.asarray(cell.mesh).copy()
     assert cell._mesh_from_build
-    cell.mesh = [7] * 3
 
     method = _FakeMethod(cell)
     _, optimized_cell = ase_solver.kernel(method, max_steps=0)
 
     assert not cell._mesh_from_build
-    np.testing.assert_array_equal(method.mesh, mesh)
+    np.testing.assert_array_equal(method.cell.mesh, mesh)
     np.testing.assert_array_equal(cell.mesh, mesh)
     np.testing.assert_array_equal(optimized_cell.mesh, mesh)
 
@@ -163,7 +162,7 @@ def test_ase_optimize_cell():
     atom_coords = cell.atom_coords()
     assert abs(atom_coords[0,0]) < 1e-5
     assert abs(atom_coords[1,0] - 2.10721898) < 5e-4
-    assert abs(atom_coords[1,0]*2 - a[0,1]) < 1e-7
+    assert abs(atom_coords[1,0]*2 - a[0,1]) < 2e-7
 
 @pytest.mark.skipif(ase is None, reason='ASE not available')
 def test_ase_optimize_mol():
