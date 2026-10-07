@@ -17,6 +17,7 @@ import numpy as np
 import unittest
 import pytest
 from pyscf import dft
+from pyscf.dft import xcfun
 from pyscf.geomopt.geometric_solver import optimize
 import gpu4pyscf.tdscf.ris as ris
 from gpu4pyscf.lib.multi_gpu import num_devices
@@ -47,6 +48,7 @@ class KnownValues(unittest.TestCase):
     @unittest.skipIf(num_devices > 1, '')
     def test_opt_rks_tda_1(self):
         mf = dft.RKS(mol, xc='pbe0').to_gpu().density_fit()
+        mf._numint.libxc = xcfun
         mf.kernel()
         assert mf.converged
         td_ris = ris.TDA(mf=mf, nstates=5, spectra=False, single=False, gram_schmidt=True)
@@ -56,6 +58,7 @@ class KnownValues(unittest.TestCase):
         mol_gpu = optimize(td_ris)
 
         mff = dft.RKS(mol_gpu, xc='pbe0').to_gpu().density_fit()
+        mff._numint.libxc = xcfun
         mff.kernel()
         assert mff.converged
         tdf_ris = ris.TDA(mf=mff, nstates=5, spectra=False, single=False, gram_schmidt=True)
@@ -69,6 +72,7 @@ class KnownValues(unittest.TestCase):
     @pytest.mark.slow
     def test_opt_rks_tda_2(self):
         mf = dft.RKS(mol, xc='pbe0').to_gpu().density_fit()
+        mf._numint.libxc = xcfun
         mf.kernel()
         assert mf.converged
         td_ris = ris.TDA(mf=mf, nstates=5, spectra=False, single=False, gram_schmidt=True)
@@ -80,6 +84,7 @@ class KnownValues(unittest.TestCase):
         mol_gpu = excited_grad.optimizer().kernel()
 
         mff = dft.RKS(mol_gpu, xc='pbe0').to_gpu().density_fit()
+        mff._numint.libxc = xcfun
         mff.kernel()
         assert mff.converged
         tdf_ris = ris.TDA(mf=mff, nstates=5, spectra=False, single=False, gram_schmidt=True)
