@@ -219,6 +219,11 @@ class GDF(lib.StreamObject):
             # AMD CPU + NVIDIA GPU platforms.
             tmp = _stage_mapped_host_array(tmp)
             if unpack:
+                # CuPy's host-to-device transfer keeps its staging memory
+                # alive until the asynchronous copy completes. Pass a device
+                # array to the unpack kernel so it does not retain a temporary
+                # pageable host buffer through cudaHostGetDevicePointer.
+                tmp = cp.asarray(tmp)
                 # cderi_compressed and out_buf share the same memory. However,
                 # cderi_compressed in rsdf_builder will be copied to a temporary
                 # array. Its content can be overwritten in the output.
@@ -228,10 +233,11 @@ class GDF(lib.StreamObject):
                     buf=buf, out=out_buf)
             else:
                 out = ndarray(tmp.shape, dtype=tmp.dtype, buffer=cderi_buf)
-                out.set(tmp)
+                out[...] = cp.asarray(tmp)
             yield k_aux, out, 1
             if p0 == 0 and cell.dimension == 2 and k_aux in self._cderip:
-                cderip = _stage_mapped_host_array(self._cderip[k_aux])
+                cderip = cp.asarray(
+                    _stage_mapped_host_array(self._cderip[k_aux]))
                 if unpack:
                     out = rsdf_builder._unpack_cderi_v2(
                         cderip, pair_address, kj_idx, conj_mapping,
@@ -327,14 +333,14 @@ class GDF(lib.StreamObject):
         for p0, p1 in aux_iter:
             # See the corresponding staging copy in loop over k-points above.
             cderi_block = _stage_mapped_host_array(cderi_sparse[p0:p1])
-            out = asarray(cderi_block)
+            out = cp.asarray(cderi_block)
             if unpack:
                 out2 = unpack_block(out)
             yield out2, out.T, 1
 
             if p0 == 0 and cell.dimension == 2:
-                cderip = _stage_mapped_host_array(self._cderip[0])
-                out = asarray(cderip)
+                cderip = cp.asarray(_stage_mapped_host_array(self._cderip[0]))
+                out = cderip
                 if unpack:
                     out2 = unpack_block(out)
                 yield out2, out.T, -1
