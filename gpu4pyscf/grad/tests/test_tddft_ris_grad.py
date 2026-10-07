@@ -17,6 +17,7 @@ import numpy as np
 import unittest
 import pytest
 from pyscf import scf, dft, tdscf
+from pyscf.dft import xcfun
 import gpu4pyscf
 from gpu4pyscf import scf as gpu_scf
 import gpu4pyscf.tdscf.ris as ris
@@ -79,6 +80,7 @@ def benchmark_with_finite_diff(
 
     mol = mol_input.copy()
     mf = dft.RKS(mol, xc=xc).to_gpu()
+    mf._numint.libxc = xcfun
     mf.grids.level=9
     mf.grids.prune = None
     mf.run()
@@ -108,6 +110,7 @@ def benchmark_with_finite_diff(
         mol.set_geom_(coords_new, unit='Ang')
         mol.build()
         mf_add = dft.RKS(mol, xc=xc).to_gpu()
+        mf_add._numint.libxc = xcfun
         mf_add.grids.level=9
         mf_add.grids.prune = None
         mf_add.run()
@@ -130,6 +133,7 @@ def benchmark_with_finite_diff(
         mol.set_geom_(coords_new, unit='Ang')
         mol.build()
         mf_minus = dft.RKS(mol, xc=xc).to_gpu()
+        mf_minus._numint.libxc = xcfun
         mf_minus.grids.level=9
         mf_minus.grids.prune = None
         mf_minus.run()
@@ -177,6 +181,7 @@ class KnownValues(unittest.TestCase):
 
     def test_grad_b3lyp_tda_singlet_ref(self):
         mf = dft.RKS(mol, xc='b3lyp').to_gpu()
+        mf._numint.libxc = xcfun
         mf.kernel()
 
         td = ris.TDDFT(mf=mf, nstates=5, spectra=False, single=False, gram_schmidt=True)
@@ -195,6 +200,7 @@ class KnownValues(unittest.TestCase):
 
     def test_grad_pbe_tda_singlet_ris_zvector_solver_ref(self):
         mf = dft.RKS(mol1, xc='pbe').to_gpu()
+        mf._numint.libxc = xcfun
         mf.kernel()
 
         td = ris.TDA(mf=mf, nstates=5, spectra=False, single=False, gram_schmidt=True)
@@ -214,6 +220,7 @@ class KnownValues(unittest.TestCase):
 
     def test_grad_pbe0_tda_singlet_ris_zvector_solver_ref(self):
         mf = dft.RKS(mol1, xc='pbe0').to_gpu()
+        mf._numint.libxc = xcfun
         mf.kernel()
 
         td = ris.TDA(mf=mf, nstates=5, spectra=False, single=False, gram_schmidt=True)
@@ -233,6 +240,7 @@ class KnownValues(unittest.TestCase):
 
     def test_grad_camb3lyp_tda_singlet_ris_zvector_solver_ref(self):
         mf = dft.RKS(mol1, xc='camb3lyp').to_gpu()
+        mf._numint.libxc = xcfun
         mf.kernel()
 
         td = ris.TDA(mf=mf, nstates=5, spectra=False, single=False, gram_schmidt=True)
