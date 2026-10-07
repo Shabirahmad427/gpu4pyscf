@@ -17,6 +17,7 @@ import numpy as np
 import cupy as cp
 import pyscf
 from pyscf import lib
+from pyscf.dft import xcfun
 from gpu4pyscf import tdscf, nac
 from gpu4pyscf.lib.multi_gpu import num_devices
 import pytest
@@ -42,9 +43,20 @@ def tearDownModule():
     del mol
 
 
+def _make_rks(mol, xc, with_df=False):
+    mf = mol.RKS(xc=xc)
+    if with_df:
+        mf = mf.density_fit()
+    mf = mf.to_gpu()
+    # NAC calculations need third-order XC derivatives, unavailable from
+    # LibXC for the functionals tested here.
+    mf._numint.libxc = xcfun
+    return mf
+
+
 class KnownValues(unittest.TestCase):
     def test_nac_pbe_tddft_singlet_ge_vs_direct(self):
-        mf = mol.RKS(xc="pbe").to_gpu()
+        mf = _make_rks(mol, "pbe")
         mf.grids.atom_grid = (99,590)
         mf.kernel()
         td = mf.TDDFT().set(nstates=5)
@@ -53,7 +65,7 @@ class KnownValues(unittest.TestCase):
         nac1.states=(1,0)
         nac1.kernel()
 
-        mf = mol.RKS(xc="pbe").density_fit().to_gpu()
+        mf = _make_rks(mol, "pbe", with_df=True)
         mf.grids.atom_grid = (99,590)
         mf.kernel()
         td2 = mf.TDDFT().set(nstates=5)
@@ -69,7 +81,7 @@ class KnownValues(unittest.TestCase):
         assert abs(np.abs(nac1.de_etf_scaled) - np.abs(nac2.de_etf_scaled)).max() < 1e-4
 
     def test_nac_b3lyp_tddft_singlet_ge_vs_direct(self):
-        mf = mol.RKS(xc="b3lyp").to_gpu()
+        mf = _make_rks(mol, "b3lyp")
         mf.grids.atom_grid = (99,590)
         mf.kernel()
         td = mf.TDDFT().set(nstates=5)
@@ -82,7 +94,7 @@ class KnownValues(unittest.TestCase):
         assert abs(lib.fp(abs(nac1.de_etf)) - 0.11309082066049063) < 1e-6
         assert abs(lib.fp(abs(nac1.de_etf_scaled)) - 0.4044441379597835) < 1e-6
 
-        mf = mol.RKS(xc="b3lyp").density_fit().to_gpu()
+        mf = _make_rks(mol, "b3lyp", with_df=True)
         mf.grids.atom_grid = (99,590)
         mf.kernel()
         td2 = mf.TDDFT().set(nstates=5)
@@ -102,7 +114,7 @@ class KnownValues(unittest.TestCase):
         assert abs(np.abs(nac1.de_etf_scaled) - np.abs(nac2.de_etf_scaled)).max() < 1e-4
 
     def test_nac_camb3lyp_tda_singlet_ge_vs_direct(self):
-        mf = mol.RKS(xc="camb3lyp").to_gpu()
+        mf = _make_rks(mol, "camb3lyp")
         mf.grids.atom_grid = (99,590)
         mf.kernel()
         td = mf.TDA().set(nstates=5)
@@ -115,7 +127,7 @@ class KnownValues(unittest.TestCase):
         assert abs(lib.fp(abs(nac1.de_etf)) - 0.11045272132213822) < 1e-6
         assert abs(lib.fp(abs(nac1.de_etf_scaled)) - 0.3895641868306882) < 1e-6
 
-        mf = mol.RKS(xc="camb3lyp").density_fit().to_gpu()
+        mf = _make_rks(mol, "camb3lyp", with_df=True)
         mf.grids.atom_grid = (99,590)
         mf.kernel()
         td2 = mf.TDA().set(nstates=5)
@@ -135,7 +147,7 @@ class KnownValues(unittest.TestCase):
         assert abs(np.abs(nac1.de_etf_scaled) - np.abs(nac2.de_etf_scaled)).max() < 1e-4
 
     def test_nac_pbe_tda_singlet_ee_vs_direct(self):
-        mf = mol.RKS(xc="pbe").to_gpu()
+        mf = _make_rks(mol, "pbe")
         mf.grids.atom_grid = (99,590)
         mf.kernel()
         td = mf.TDA().set(nstates=5)
@@ -144,7 +156,7 @@ class KnownValues(unittest.TestCase):
         nac1.states=(1,2)
         nac1.kernel()
 
-        mf = mol.RKS(xc="pbe").density_fit().to_gpu()
+        mf = _make_rks(mol, "pbe", with_df=True)
         mf.grids.atom_grid = (99,590)
         mf.kernel()
         td2 = mf.TDA().set(nstates=5)
@@ -163,7 +175,7 @@ class KnownValues(unittest.TestCase):
         """
         Compare the analytical nacv with finite difference nacv
         """
-        mf = mol.RKS(xc="pbe").density_fit().to_gpu()
+        mf = _make_rks(mol, "pbe", with_df=True)
         mf.grids.atom_grid = (99,590)
         mf.kernel()
         td = mf.TDA().set(nstates=5)
@@ -194,7 +206,7 @@ class KnownValues(unittest.TestCase):
         """
         Compare the analytical nacv with finite difference nacv
         """
-        mf = mol.RKS(xc="pbe0").density_fit().to_gpu()
+        mf = _make_rks(mol, "pbe0", with_df=True)
         mf.grids.atom_grid = (99,590)
         mf.kernel()
         td = mf.TDA().set(nstates=5)
@@ -221,7 +233,7 @@ class KnownValues(unittest.TestCase):
         assert np.linalg.norm(np.abs(ana_nac[1]) - np.abs(fdiff_nac)) < 1e-5
 
     def test_nac_b3lyp_tddft_singlet_ee_vs_direct(self):
-        mf = mol.RKS(xc="b3lyp").to_gpu()
+        mf = _make_rks(mol, "b3lyp")
         mf.grids.atom_grid = (99,590)
         mf.kernel()
         td = mf.TDDFT().set(nstates=5)
@@ -234,7 +246,7 @@ class KnownValues(unittest.TestCase):
         assert abs(lib.fp(abs(nac1.de_etf)) - 0.0762404494085614) < 1e-6
         assert abs(lib.fp(abs(nac1.de_etf_scaled)) - 1.113051694501974) < 1e-6
 
-        mf = mol.RKS(xc="b3lyp").density_fit().to_gpu()
+        mf = _make_rks(mol, "b3lyp", with_df=True)
         mf.grids.atom_grid = (99,590)
         mf.kernel()
         td2 = mf.TDDFT().set(nstates=5)
@@ -253,7 +265,7 @@ class KnownValues(unittest.TestCase):
         assert abs(np.abs(nac1.de_etf_scaled) - np.abs(nac2.de_etf_scaled)).max() < 4e-4
 
     def test_nac_camb3lyp_tddft_singlet_ee_vs_direct(self):
-        mf = mol.RKS(xc="camb3lyp").to_gpu()
+        mf = _make_rks(mol, "camb3lyp")
         mf.grids.atom_grid = (99,590)
         mf.kernel()
         td = mf.TDDFT().set(nstates=5)
@@ -266,7 +278,7 @@ class KnownValues(unittest.TestCase):
         assert abs(lib.fp(abs(nac1.de_etf)) - 0.07393393946968635) < 1e-6
         assert abs(lib.fp(abs(nac1.de_etf_scaled)) - 1.0465486510417004) < 2e-6
 
-        mf = mol.RKS(xc="camb3lyp").density_fit().to_gpu()
+        mf = _make_rks(mol, "camb3lyp", with_df=True)
         mf.grids.atom_grid = (99,590)
         mf.kernel()
         td2 = mf.TDDFT().set(nstates=5)
@@ -285,7 +297,7 @@ class KnownValues(unittest.TestCase):
         assert abs(np.abs(nac1.de_etf_scaled) - np.abs(nac2.de_etf_scaled)).max() < 4e-4
 
     def test_nac_b3lyp_tddft_singlet_ris_zvector_solver(self):
-        mf = mol.RKS(xc="b3lyp").density_fit().to_gpu()
+        mf = _make_rks(mol, "b3lyp", with_df=True)
         mf.grids.atom_grid = (99,590)
         mf.kernel()
         td = mf.TDDFT().set(nstates=5)

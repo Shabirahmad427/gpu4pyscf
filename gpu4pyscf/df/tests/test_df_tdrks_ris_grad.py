@@ -17,6 +17,7 @@ import numpy as np
 import unittest
 import pytest
 from pyscf import scf, dft, tdscf, lib
+from pyscf.dft import xcfun
 import gpu4pyscf
 from gpu4pyscf import scf as gpu_scf
 import gpu4pyscf.tdscf.ris as ris
@@ -69,16 +70,24 @@ def tearDownModule():
     del mol
 
 
+def _make_rks(mol, xc, with_df=False):
+    mf = dft.RKS(mol, xc=xc)
+    if with_df:
+        mf = mf.density_fit()
+    mf = mf.to_gpu()
+    # TDDFT gradients require third-order XC derivatives, unsupported by
+    # LibXC for the functionals used in this module.
+    mf._numint.libxc = xcfun
+    return mf
+
+
 def benchmark_with_finite_diff(
         mol_input, xc, delta=0.1, nstates=3, lindep=1.0e-12, tda=False,
         with_df=False, tol=1e-5, coords_indices=None):
     
     mol = mol_input.copy()
     
-    if with_df:
-        mf = dft.RKS(mol, xc=xc).density_fit().to_gpu()
-    else:
-        mf = dft.RKS(mol, xc=xc).to_gpu()
+    mf = _make_rks(mol, xc, with_df)
     mf.grids.level=9
     mf.grids.prune = None
     mf.run()
@@ -107,10 +116,7 @@ def benchmark_with_finite_diff(
         coords_new[i, j] += delta
         mol.set_geom_(coords_new, unit='Ang')
         mol.build()
-        if with_df:
-            mf_add = dft.RKS(mol, xc=xc).density_fit().to_gpu()
-        else:
-            mf_add = dft.RKS(mol, xc=xc).to_gpu()
+        mf_add = _make_rks(mol, xc, with_df)
         mf_add.grids.level=9
         mf_add.grids.prune = None
         mf_add.run()
@@ -132,10 +138,7 @@ def benchmark_with_finite_diff(
         coords_new[i, j] -= delta
         mol.set_geom_(coords_new, unit='Ang')
         mol.build()
-        if with_df:
-            mf_minus = dft.RKS(mol, xc=xc).density_fit().to_gpu()
-        else:
-            mf_minus = dft.RKS(mol, xc=xc).to_gpu()
+        mf_minus = _make_rks(mol, xc, with_df)
         mf_minus.grids.level=9
         mf_minus.grids.prune = None
         mf_minus.run()
@@ -170,7 +173,7 @@ class KnownValues(unittest.TestCase):
     @pytest.mark.slow
     def test_grad_b3lyp_tda_singlet(self):
         mol = pyscf.M(atom=atom, basis='ccpvdz')
-        mf = dft.RKS(mol, xc='b3lyp').to_gpu()
+        mf = _make_rks(mol, 'b3lyp')
         mf.kernel()
 
         td = ris.TDDFT(mf=mf, nstates=5, spectra=False, single=False, gram_schmidt=True)
@@ -182,7 +185,7 @@ class KnownValues(unittest.TestCase):
         assert abs(lib.fp(g.de) - -0.16752744269930692) < 1e-4
 
     def test_grad_b3lyp_tda_singlet_df(self):
-        mf = dft.RKS(mol, xc='b3lyp').density_fit().to_gpu()
+        mf = _make_rks(mol, 'b3lyp', with_df=True)
         mf.kernel()
 
         td2 = ris.TDDFT(mf=mf, nstates=5, spectra=False, single=False, gram_schmidt=True)

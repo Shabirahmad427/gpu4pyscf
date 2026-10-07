@@ -16,6 +16,7 @@ import unittest
 import numpy as np
 import pyscf
 from pyscf import dft
+from pyscf.dft import xcfun
 from gpu4pyscf import tdscf
 from pyscf.data.nist import HARTREE2EV
 from gpu4pyscf.nac.mecp import MECPScanner, ConicalIntersectionOptimizer
@@ -44,6 +45,15 @@ def tearDownModule():
     del mol
 
 
+def _make_rks(mol, with_df=False):
+    mf = dft.RKS(mol, xc="pbe0")
+    if with_df:
+        mf = mf.density_fit()
+    mf = mf.to_gpu()
+    mf._numint.libxc = xcfun
+    return mf
+
+
 def project_on_plane_lstsq(x3, x1, x2):
     x3 = x3.reshape(-1)
     x1 = x1.reshape(-1)
@@ -55,7 +65,7 @@ def project_on_plane_lstsq(x3, x1, x2):
 
 
 def calc_energy(mol):
-    mf = dft.RKS(mol, xc='pbe0').to_gpu()
+    mf = _make_rks(mol, with_df=False)
     mf.kernel()
     td = tdscf.ris.TDA(mf=mf, nstates=5, spectra=False, single=False, gram_schmidt=True, Ktrunc=0.0)
     td.conv_tol=1.0E-5
@@ -67,7 +77,7 @@ def calc_energy(mol):
 class KnownValues(unittest.TestCase):
     @unittest.skipIf(num_devices > 1, '')
     def test_mecp_pbe0_tda_singlet(self):
-        mf = dft.RKS(mol, xc='pbe0').to_gpu().density_fit()
+        mf = _make_rks(mol, with_df=True)
         mf.kernel()
         td = tdscf.ris.TDA(mf=mf, nstates=5, spectra=False, single=False, gram_schmidt=True, Ktrunc=0.0)
         td.conv_tol=1.0E-4
@@ -79,7 +89,7 @@ class KnownValues(unittest.TestCase):
         assert abs(mol.atom_coords() - optimized_mol.atom_coords()).max() < 3e-4
 
     def test_mecp_hf_tda_singlet_geom_check(self):
-        mff = dft.RKS(mol, xc='pbe0').to_gpu().density_fit()
+        mff = _make_rks(mol, with_df=True)
         mff.kernel()
         tdf = tdscf.ris.TDA(mf=mff, nstates=5, spectra=False, single=False, gram_schmidt=True, Ktrunc=0.0)
         tdf.conv_tol=1.0E-4

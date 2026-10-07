@@ -17,6 +17,7 @@ import numpy as np
 import cupy as cp
 import pyscf
 from pyscf import lib, gto, scf, dft
+from pyscf.dft import xcfun
 from gpu4pyscf import tdscf, nac
 import gpu4pyscf
 import pytest
@@ -40,6 +41,15 @@ def tearDownModule():
     global mol
     mol.stdout.close()
     del mol
+
+
+def _make_rks(mol, xc, with_df=False):
+    mf = dft.rks.RKS(mol, xc=xc)
+    if with_df:
+        mf = mf.density_fit()
+    mf = mf.to_gpu()
+    mf._numint.libxc = xcfun
+    return mf
 
 
 class KnownValues(unittest.TestCase):
@@ -90,7 +100,7 @@ class KnownValues(unittest.TestCase):
         3       0.101769       0.000000      -0.000000
         ---------------------------------------------------
         """
-        mf = dft.rks.RKS(mol, xc="pbe").to_gpu()
+        mf = _make_rks(mol, "pbe", with_df=False)
         mf.grids.atom_grid = (99,590)
         mf.kernel()
         td = mf.TDA().set(nstates=5)
@@ -133,7 +143,7 @@ class KnownValues(unittest.TestCase):
         """
         compare with finite difference
         """
-        mf = dft.rks.RKS(mol, xc="pbe").to_gpu()
+        mf = _make_rks(mol, "pbe", with_df=False)
         mf.grids.atom_grid = (99,590)
         mf.kernel()
         td = mf.TDA().set(nstates=5)
@@ -160,7 +170,7 @@ class KnownValues(unittest.TestCase):
         """
         compare with finite difference
         """
-        mf = dft.rks.RKS(mol, xc="pbe0").to_gpu()
+        mf = _make_rks(mol, "pbe0", with_df=False)
         mf.grids.atom_grid = (99,590)
         mf.kernel()
         td = mf.TDA().set(nstates=5)
@@ -186,7 +196,7 @@ class KnownValues(unittest.TestCase):
         """
         benchmark from qchem
         """
-        mf = dft.rks.RKS(mol, xc="b3lyp").to_gpu()
+        mf = _make_rks(mol, "b3lyp", with_df=False)
         mf.grids.atom_grid = (99,590)
         mf.kernel()
         td = mf.TDDFT().set(nstates=5)
@@ -228,7 +238,7 @@ class KnownValues(unittest.TestCase):
         """
         benchmark from qchem
         """
-        mf = dft.rks.RKS(mol, xc="camb3lyp").to_gpu()
+        mf = _make_rks(mol, "camb3lyp", with_df=False)
         mf.grids.atom_grid = (99,590)
         mf.kernel()
         td = mf.TDA().set(nstates=5)
@@ -267,7 +277,7 @@ class KnownValues(unittest.TestCase):
         assert abs(np.abs(nac1.de_etf_scaled) - np.abs(ref_etf_scaled)).max() < 1e-4
 
     def test_nac_b3lyp_tddft_singlet_ris_zvector_solver(self):
-        mf = dft.rks.RKS(mol, xc="b3lyp").to_gpu()
+        mf = _make_rks(mol, "b3lyp", with_df=False)
         mf.grids.atom_grid = (99,590)
         mf.kernel()
         td = mf.TDDFT().set(nstates=5)

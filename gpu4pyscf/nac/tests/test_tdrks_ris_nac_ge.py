@@ -17,6 +17,7 @@ import numpy as np
 import cupy as cp
 import pyscf
 from pyscf import lib, gto, scf, dft
+from pyscf.dft import xcfun
 from gpu4pyscf import tdscf, nac
 import gpu4pyscf
 import pytest
@@ -45,10 +46,19 @@ def tearDownModule():
     del mol
 
 
+def _make_rks(mol, xc, with_df=False):
+    mf = dft.RKS(mol, xc=xc)
+    if with_df:
+        mf = mf.density_fit()
+    mf = mf.to_gpu()
+    mf._numint.libxc = xcfun
+    return mf
+
+
 class KnownValues(unittest.TestCase):
     @unittest.skipIf(num_devices > 1, '')
     def test_nac_pbe_tdaris_singlet_vs_ref(self):
-        mf = dft.rks.RKS(mol, xc="pbe").to_gpu()
+        mf = _make_rks(mol, "pbe", with_df=False)
         mf.grids.atom_grid = (99,590)
         mf.kernel()
 
@@ -75,7 +85,7 @@ class KnownValues(unittest.TestCase):
 
     @pytest.mark.slow
     def test_nac_pbe_tdaris_singlet_fdiff(self):
-        mf = dft.rks.RKS(mol, xc="pbe").to_gpu()
+        mf = _make_rks(mol, "pbe", with_df=False)
         mf.kernel()
 
         td_ris = tdscf.ris.TDA(mf=mf, nstates=5, spectra=False, single=False, gram_schmidt=True)
@@ -100,7 +110,7 @@ class KnownValues(unittest.TestCase):
 
     @pytest.mark.slow
     def test_nac_pbe0_tdaris_singlet_fdiff(self):
-        mf = dft.rks.RKS(mol, xc="pbe0").to_gpu()
+        mf = _make_rks(mol, "pbe0", with_df=False)
         mf.kernel()
 
         td_ris = tdscf.ris.TDA(mf=mf, nstates=5, spectra=False, single=False, gram_schmidt=True)
@@ -124,7 +134,7 @@ class KnownValues(unittest.TestCase):
         assert np.linalg.norm(np.abs(ana_nac[1]) - np.abs(fdiff_nac)) < 1e-5
 
     def test_nac_pbe0_tddftris_singlet_vs_ref(self):
-        mf = dft.rks.RKS(mol, xc="pbe0").to_gpu()
+        mf = _make_rks(mol, "pbe0", with_df=False)
         mf.grids.atom_grid = (99,590)
         mf.kernel()
 
@@ -151,7 +161,7 @@ class KnownValues(unittest.TestCase):
 
     @unittest.skipIf(num_devices > 1, '')
     def test_nac_camb3lyp_tdaris_singlet_vs_ref(self):
-        mf = dft.rks.RKS(mol, xc="camb3lyp").to_gpu()
+        mf = _make_rks(mol, "camb3lyp", with_df=False)
         mf.kernel()
 
         td_ris = tdscf.ris.TDA(mf=mf, nstates=5, spectra=False, single=False, gram_schmidt=True)
@@ -176,7 +186,7 @@ class KnownValues(unittest.TestCase):
         assert abs(np.abs(nac_ris.de_etf) - np.abs(ref_de_etf)).max() < 1.0E-6
 
     def test_nac_pbe_tdaris_singlet_vs_ref_ris_zvector_solver(self):
-        mf = dft.rks.RKS(mol, xc="pbe").to_gpu()
+        mf = _make_rks(mol, "pbe", with_df=False)
         mf.grids.atom_grid = (99,590)
         mf.kernel()
 
@@ -203,7 +213,7 @@ class KnownValues(unittest.TestCase):
         assert abs(np.abs(nac_ris.de_etf) - np.abs(ref_de_etf)).max() < 1.0E-6
 
     def test_nac_pbe0_tdaris_singlet_vs_ref_ris_zvector_solver(self):
-        mf = dft.rks.RKS(mol, xc="pbe0").to_gpu()
+        mf = _make_rks(mol, "pbe0", with_df=False)
         mf.grids.atom_grid = (99,590)
         mf.kernel()
 
@@ -230,7 +240,7 @@ class KnownValues(unittest.TestCase):
         assert abs(np.abs(nac_ris.de_etf) - np.abs(ref_de_etf)).max() < 1.0E-6
 
     def test_nac_camb3lyp_tdaris_singlet_vs_ref_ris_zvector_solver(self):
-        mf = dft.rks.RKS(mol, xc="camb3lyp").to_gpu()
+        mf = _make_rks(mol, "camb3lyp", with_df=False)
         mf.grids.atom_grid = (99,590)
         mf.kernel()
 
