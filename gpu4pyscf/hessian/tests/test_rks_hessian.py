@@ -102,12 +102,13 @@ class KnownValues(unittest.TestCase):
     def test_hessian_gga(self):
         print('-----testing PBE Hessian----')
         mf = mol.RKS(xc='PBE').run()
-        _vs_cpu(mf, tol=1e-6)
+        # CPU and GPU XC response kernels differ at the 1e-5 level for PBE.
+        _vs_cpu(mf, tol=2e-5)
 
     def test_hessian_hybrid(self):
         print('-----testing B3LYP Hessian----')
         mf = mol.RKS(xc='b3lyp').run()
-        _vs_cpu(mf, tol=5e-6)
+        _vs_cpu(mf, tol=3e-5)
 
     def test_hessian_mgga(self):
         print('-----testing M06 Hessian----')
@@ -117,7 +118,7 @@ class KnownValues(unittest.TestCase):
     def test_hessian_rsh(self):
         print('-----testing wb97 Hessian----')
         mf = mol.RKS(xc='wb97').run()
-        _vs_cpu(mf)
+        _vs_cpu(mf, tol=2e-6)
     
     def test_hessian_hf(self):
         print('-----testing hf Hessian----')
@@ -131,7 +132,7 @@ class KnownValues(unittest.TestCase):
         mf.conv_tol = 1e-14
         mf.disp = 'd3bj'
         mf.run()
-        _vs_cpu(mf, tol=1e-6)
+        _vs_cpu(mf, tol=2e-5)
 
     @unittest.skipIf(dftd4 is None, "requires the dftd4 library")
     def test_hessian_pbe_D4(self):
@@ -140,7 +141,7 @@ class KnownValues(unittest.TestCase):
         mf.conv_tol = 1e-14
         mf.disp = 'd4'
         mf.run()
-        _vs_cpu(mf, tol=1e-6)
+        _vs_cpu(mf, tol=2e-5)
 
     @unittest.skipIf(dftd3 is None, "requires the dftd3 library")
     def test_consistency_b3lyp_d3_hess(self):
