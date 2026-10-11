@@ -206,7 +206,6 @@ def cholesky(A):
     buffersize = potrf_bufferSize(handle, cublas.CUBLAS_FILL_MODE_UPPER, n, x.data.ptr, n)
     workspace = cupy.empty(buffersize, dtype=A.dtype)
     dev_info = cupy.empty(1, dtype=np.int32)
-    _set_cusolver_stream(handle)
     potrf(handle, cublas.CUBLAS_FILL_MODE_UPPER, n, x.data.ptr, n,
         workspace.data.ptr, buffersize, dev_info.data.ptr)
 

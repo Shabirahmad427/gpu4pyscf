@@ -116,6 +116,7 @@ if 'sdist' in sys.argv:
     CUDA_VERSION = '12x'
 else:
     CUDA_VERSION = get_cuda_version()
+    package_name = NAME
     if os.getenv('GPU4PYSCF_BUILD_CUDA_WHEEL'):
         package_name = NAME + '-cuda' + CUDA_VERSION
 
@@ -143,7 +144,7 @@ setup(
         'pyscf>=2.8.0',
         f'cupy-cuda{CUDA_VERSION}>=13.0,!=13.4.0', # Due to expm in cupyx.scipy.linalg and cutensor 2.0
         'geometric',
-        f'gpu4pyscf-libxc-cuda{CUDA_VERSION}==0.8.1',
+        f'gpu4pyscf-libxc-cuda{CUDA_VERSION}==0.9.0',
         'packaging',
     ]
 )
