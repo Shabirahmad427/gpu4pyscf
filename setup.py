@@ -116,6 +116,7 @@ if 'sdist' in sys.argv:
     CUDA_VERSION = '12x'
 else:
     CUDA_VERSION = get_cuda_version()
+    package_name = NAME
     if os.getenv('GPU4PYSCF_BUILD_CUDA_WHEEL'):
         package_name = NAME + '-cuda' + CUDA_VERSION
 

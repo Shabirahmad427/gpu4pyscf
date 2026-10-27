@@ -50,6 +50,22 @@ from gpu4pyscf.__config__ import num_devices
 DEBUG = False
 
 
+def _stage_mapped_host_array(array):
+    """Copy CUDA-mapped NumPy arrays to regular host memory before upload."""
+    if not isinstance(array, np.ndarray):
+        return array
+
+    # NumPy views keep their owner in a chain of ``base`` arrays. Walk to the
+    # owner so ordinary NumPy arrays can use the normal upload path without an
+    # extra full-size host copy.
+    owner = array
+    while isinstance(owner, np.ndarray):
+        owner = owner.base
+    if isinstance(owner, cp.cuda.PinnedMemoryPointer):
+        return np.array(array, copy=True, order='C')
+    return array
+
+
 class GDF(lib.StreamObject):
     '''Gaussian density fitting
     '''
@@ -197,7 +213,17 @@ class GDF(lib.StreamObject):
             tmp = self._cderi[k_aux][p0:p1]
             if tmp.size == 0:
                 return
+            # The compressed tensor can be backed by CUDA-mapped host memory.
+            # Stage through ordinary host memory before transferring it to the
+            # GPU; direct reads from mapped allocations are unreliable on some
+            # AMD CPU + NVIDIA GPU platforms.
+            tmp = _stage_mapped_host_array(tmp)
             if unpack:
+                # CuPy's host-to-device transfer keeps its staging memory
+                # alive until the asynchronous copy completes. Pass a device
+                # array to the unpack kernel so it does not retain a temporary
+                # pageable host buffer through cudaHostGetDevicePointer.
+                tmp = cp.asarray(tmp)
                 # cderi_compressed and out_buf share the same memory. However,
                 # cderi_compressed in rsdf_builder will be copied to a temporary
                 # array. Its content can be overwritten in the output.
@@ -207,15 +233,17 @@ class GDF(lib.StreamObject):
                     buf=buf, out=out_buf)
             else:
                 out = ndarray(tmp.shape, dtype=tmp.dtype, buffer=cderi_buf)
-                out.set(tmp)
+                out[...] = cp.asarray(tmp)
             yield k_aux, out, 1
             if p0 == 0 and cell.dimension == 2 and k_aux in self._cderip:
+                cderip = cp.asarray(
+                    _stage_mapped_host_array(self._cderip[k_aux]))
                 if unpack:
                     out = rsdf_builder._unpack_cderi_v2(
-                        self._cderip[k_aux], pair_address, kj_idx, conj_mapping,
+                        cderip, pair_address, kj_idx, conj_mapping,
                         expLk, nao, buf=buf, out=out_buf)
                 else:
-                    out = asarray(self._cderip[k_aux])
+                    out = asarray(cderip)
                 yield k_aux, out, -1
 
     def get_pp(self, kpts=None):
@@ -303,13 +331,16 @@ class GDF(lib.StreamObject):
 
         out2 = None
         for p0, p1 in aux_iter:
-            out = asarray(cderi_sparse[p0:p1])
+            # See the corresponding staging copy in loop over k-points above.
+            cderi_block = _stage_mapped_host_array(cderi_sparse[p0:p1])
+            out = cp.asarray(cderi_block)
             if unpack:
                 out2 = unpack_block(out)
             yield out2, out.T, 1
 
             if p0 == 0 and cell.dimension == 2:
-                out = asarray(self._cderip[0])
+                cderip = cp.asarray(_stage_mapped_host_array(self._cderip[0]))
+                out = cderip
                 if unpack:
                     out2 = unpack_block(out)
                 yield out2, out.T, -1

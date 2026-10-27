@@ -816,20 +816,17 @@ def grids_response_cc(grids):
 def grids_noresponse_cc(grids):
     if not getattr(grids_noresponse_cc, "_warned", False):
         grids_noresponse_cc._warned = True
-        warnings.warn("grids_noresponse_cc() in GPU4PySCF is not used or tested anymore",
-                      DeprecationWarning)
+        warnings.warn("grids_noresponse_cc() is deprecated; use the grid response APIs",
+                      DeprecationWarning, stacklevel=2)
 
-    # same as above but without the response, for nlc grids response routine
-    # Similarly, the returned grid order could be different from pyscf.grad.rks.grids_noresponse_cc()!
     mol = grids.mol
-
-    grid_to_atom_index_map = grids.atm_idx
-    atom_to_grid_index_map = [cupy.where(grid_to_atom_index_map == i_atom)[0] for i_atom in range(mol.natm)]
-    grid_to_atom_index_map = None
-
+    atom_grids_tab = grids.gen_atomic_grids(
+        mol, grids.atom_grid, grids.radi_method, grids.level, grids.prune)
+    coords_by_atom, weights_by_atom = gen_grid.get_partition(
+        mol, atom_grids_tab, grids.radii_adjust, grids.atomic_radii,
+        grids.becke_scheme, concat=False)
     for i_atom in range(mol.natm):
-        i_g = atom_to_grid_index_map[i_atom]
-        yield grids.coords[i_g, :], grids.weights[i_g]
+        yield coords_by_atom[i_atom], weights_by_atom[i_atom]
 
 class Gradients(rhf_grad.Gradients):
     from gpu4pyscf.lib.utils import to_gpu, device
