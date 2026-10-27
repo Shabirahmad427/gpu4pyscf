@@ -112,7 +112,7 @@ def _jk_energy_per_atom(int3c2e_opt, dm, j_factor=1, k_factor=1,
     word_avail = mem_avail // 8
     word_avail -= 2 * 3 * naux * nocc**2 # j3c_oo1
     batch_size = int(word_avail * 0.02) // nao_pair
-    batch_size = max(largest_shell_nao, min(batch_size, naux))
+    batch_size = max(largest_shell_nao, min(64, batch_size, naux))
     eval_j3c, aux_sorting, _, aux_offsets = int3c2e_opt.int3c2e_evaluator(
         aux_batch_size=batch_size, reorder_aux=True, cart=True,
         omega=omega, lr_factor=lr_factor, sr_factor=sr_factor)
@@ -519,7 +519,7 @@ def _get_veff(int3c2e_opt, mo_coeff, mo_occ, j_factor=1, k_factor=1,
     if batch_size < largest_shell_nao:
         mem_req = (largest_shell_nao-batch_size) *_unit * 1.5 * 1e-6
         raise MemoryError(f'Insufficient GPU memory. Need {mem_req} MB more.')
-    batch_size = min(batch_size, max(largest_shell_nao, naux))
+    batch_size = max(largest_shell_nao, min(batch_size, 64, naux))
 
     eval_j3c, aux_sorting, _, aux_offsets = int3c2e_opt.int3c2e_evaluator(
         aux_batch_size=batch_size, reorder_aux=True, cart=True,
@@ -579,7 +579,14 @@ def _get_veff(int3c2e_opt, mo_coeff, mo_occ, j_factor=1, k_factor=1,
     dm_3c = j3c_00
     j3c_00 = tmp = work = metric_v = metric_w = None
 
-    dm_oo = contract('rniq,nqj->rnij', dm_3c, orbo)
+    dm_oo = cp.empty((naux,2,nocc,nocc))
+    rstep = max(1, min(256, int(word_avail * 0.02 // (nocc**2))))
+    for spin in range(2):
+        for r0, r1 in lib.prange(0, naux, rstep):
+            tmp = cp.empty((r1-r0,nocc,nocc))
+            cp.dot(dm_3c[r0:r1,spin].reshape(-1,nao), orbo[spin],
+                   out=tmp.reshape(-1,nocc))
+            dm_oo[r0:r1,spin] = tmp
     if j_factor != 0:
         auxvec = cp.einsum('rnii->r', dm_oo)
         auxvec_by_atm = auxvec[aux_idx]
@@ -603,17 +610,23 @@ def _get_veff(int3c2e_opt, mo_coeff, mo_occ, j_factor=1, k_factor=1,
         if mem_sufficient:
             dm_3c_atm = cp.take(dm_3c, aux_idx[p0:p1], axis=0, out=buf1[:p1-p0])
             j3c_1 = ndarray((3,p1-p0,2,nocc,nao), buffer=buf)
-            contract('xrs,sniq->xrniq', j2c_10[:,p0:p1], dm_3c, out=j3c_1)
+            for x in range(3):
+                cp.dot(j2c_10[x,p0:p1], dm_3c.reshape(naux,-1),
+                       out=j3c_1[x].reshape(p1-p0,-1))
             contract('xrnip,rniq->xnpq', j3c_1, dm_3c_atm, -k_factor, beta=1, out=vhf_atm_ao[i])
         else:
             dm_3c_atm = cp.take(dm_3c, aux_idx[p0:p1], axis=0, out=buf1[:p1-p0])
             dm_oo_atm = dm_oo[aux_idx[p0:p1]]
             tmp = ndarray((3,p1-p0,2,nocc,nocc), buffer=buf)
-            tmp = contract('xrs,snij->xrnij', j2c_10[:,p0:p1], dm_oo, out=tmp)
+            for x in range(3):
+                cp.dot(j2c_10[x,p0:p1], dm_oo.reshape(naux,-1),
+                       out=tmp[x].reshape(p1-p0,-1))
             contract('rniq,xrnij->xnjq', dm_3c_atm, tmp, -k_factor, beta=1, out=vhf_atm[i])
 
             j3c_1 = ndarray((3,p1-p0,2,nocc,nao), buffer=buf)
-            contract('xrs,sniq->xrniq', j2c_10[:,p0:p1], dm_3c, out=j3c_1)
+            for x in range(3):
+                cp.dot(j2c_10[x,p0:p1], dm_3c.reshape(naux,-1),
+                       out=j3c_1[x].reshape(p1-p0,-1))
             contract('xrniq,rnij->xnjq', j3c_1, dm_oo_atm, -k_factor, beta=1, out=vhf_atm[i])
 
         if j_factor != 0:

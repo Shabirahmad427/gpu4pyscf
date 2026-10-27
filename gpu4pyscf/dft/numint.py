@@ -2318,16 +2318,19 @@ def _contract_rho1(bra, ket, rho=None):
     nvar, nao, ngrids = bra.shape
     rho = ndarray([nvar, ngrids], buffer=rho)
 
-    for i in range(nvar):
-        stream = cupy.cuda.get_current_stream()
-        err = libgdft.GDFTcontract_rho(
-            ctypes.cast(stream.ptr, ctypes.c_void_p),
-            ctypes.cast(rho[i].data.ptr, ctypes.c_void_p),
-            ctypes.cast(bra[i].data.ptr, ctypes.c_void_p),
-            ctypes.cast(ket.data.ptr, ctypes.c_void_p),
-            ctypes.c_int(ngrids), ctypes.c_int(nao))
-        if err != 0:
-            raise RuntimeError('CUDA Error')
+    if bra.flags.c_contiguous and ket.flags.c_contiguous:
+        for i in range(nvar):
+            stream = cupy.cuda.get_current_stream()
+            err = libgdft.GDFTcontract_rho(
+                ctypes.cast(stream.ptr, ctypes.c_void_p),
+                ctypes.cast(rho[i].data.ptr, ctypes.c_void_p),
+                ctypes.cast(bra[i].data.ptr, ctypes.c_void_p),
+                ctypes.cast(ket.data.ptr, ctypes.c_void_p),
+                ctypes.c_int(ngrids), ctypes.c_int(nao))
+            if err != 0:
+                raise RuntimeError('CUDA Error')
+    else:
+        contract('xig,ig->xg', bra, ket, out=rho)
     return rho
 
 def _contract_rho_gga(bra, ket, rho=None):
