@@ -49,5 +49,7 @@ double reduce(double val, double *swap, int thread_id)
             val += __shfl_down_sync(0xffffffff, val, offset);
         }
     }
+    // Keep other warps from overwriting swap[] before warp 0 has read it.
+    __syncthreads();
     return val;
 }
