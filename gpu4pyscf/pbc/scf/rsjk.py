@@ -306,11 +306,12 @@ class PBCJKMatrixOpt:
         l_symb = [lib.param.ANGULAR[i] for i in uniq_l]
         n_groups = np.count_nonzero(uniq_l <= LMAX)
 
-        tasks = ((i,j,k,l)
-                 for i in range(n_groups)
-                 for j in range(i+1)
-                 for k in range(i+1)
-                 for l in range(k+1))
+        # Materialize task metadata before sharing the iterator across workers.
+        tasks = iter([(i,j,k,l)
+                      for i in range(n_groups)
+                      for j in range(i+1)
+                      for k in range(i+1)
+                      for l in range(k+1)])
 
         def proc(dms, dm_cond):
             device_id = cp.cuda.device.get_device_id()
@@ -685,11 +686,12 @@ class PBCJKMatrixOpt:
         l_symb = [lib.param.ANGULAR[i] for i in uniq_l]
         n_groups = np.count_nonzero(uniq_l <= LMAX)
 
-        tasks = ((i,j,k,l)
-                 for i in range(n_groups)
-                 for j in range(i+1)
-                 for k in range(i+1)
-                 for l in range(k+1))
+        # Materialize task metadata before sharing the iterator across workers.
+        tasks = iter([(i,j,k,l)
+                      for i in range(n_groups)
+                      for j in range(i+1)
+                      for k in range(i+1)
+                      for l in range(k+1)])
 
         def proc(dms, dm_cond):
             device_id = cp.cuda.device.get_device_id()
@@ -961,11 +963,12 @@ class PBCJKMatrixOpt:
         l_symb = [lib.param.ANGULAR[i] for i in uniq_l]
         n_groups = np.count_nonzero(uniq_l <= LMAX)
 
-        tasks = ((i,j,k,l)
-                 for i in range(n_groups)
-                 for j in range(i+1)
-                 for k in range(i+1)
-                 for l in range(k+1))
+        # Materialize task metadata before sharing the iterator across workers.
+        tasks = iter([(i,j,k,l)
+                      for i in range(n_groups)
+                      for j in range(i+1)
+                      for k in range(i+1)
+                      for l in range(k+1)])
 
         def proc(dms, dm_cond):
             device_id = cp.cuda.device.get_device_id()
@@ -1590,7 +1593,7 @@ def _search_diffuse_pairs(cell, mesh):
     ke_cutoff = mesh_to_ke(cell.lattice_vectors(), mesh)
     Gmax = (ke_cutoff.min()*2)**.5
     aij = exps[:,None] * exps
-    fac = aij/Gmax * np.exp(-.25*Gmax**2/aij)
+    fac = aij/Gmax * cp.exp(-.25*Gmax**2/aij)
     pair_max *= 1 + fac
 
     precision = cell.precision * max(1, 1e-2 * cell.vol)
