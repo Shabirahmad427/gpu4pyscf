@@ -579,7 +579,7 @@ def _get_veff(int3c2e_opt, mo_coeff, mo_occ, j_factor=1, k_factor=1,
     dm_3c = j3c_00
     j3c_00 = tmp = work = metric_v = metric_w = None
 
-    dm_oo = cp.empty((naux,2,nocc,nocc))
+    dm_oo = cp.empty((naux, 2, nocc, nocc))
     rstep = max(1, min(256, int(word_avail * 0.02 // (nocc**2))))
     for spin in range(2):
         for r0, r1 in lib.prange(0, naux, rstep):

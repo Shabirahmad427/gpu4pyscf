@@ -673,7 +673,7 @@ def _j_energy_per_atom(int3c2e_opt, dm, verbose=None):
     if batch_size < largest_shell_nao:
         raise MemoryError('Insufficient GPU memory for an auxiliary shell batch')
     batch_size = min(64, naux, batch_size)
-    blksize = min(naux, int(word_avail*0.15) // (3*nao**2*8) * 8)
+    blksize = min(batch_size, int(word_avail*0.15) // (3*nao**2*8) * 8)
     assert batch_size > 0 and blksize > 0
     log.debug1('mem_avail=%.3f MB, batch_size=%d, blksize=%d',
                mem_avail*1e-6, batch_size, blksize)
