@@ -123,7 +123,7 @@ def _jk_energy_per_atom(int3c2e_opt, dm, j_factor=1, k_factor=1,
     word_avail -= 4 * naux * nocc * nocc_per_batch # j3c_oo1, dm_oo
     word_avail -= 6 * naux**2 # j2c_10v and metric_v
     batch_size = int(word_avail * 0.02) // nao_pair
-    batch_size = max(largest_shell_nao, min(batch_size, naux))
+    batch_size = max(largest_shell_nao, min(64, batch_size, naux))
     eval_j3c, aux_sorting, _, aux_offsets = int3c2e_opt.int3c2e_evaluator(
         aux_batch_size=batch_size, reorder_aux=True, cart=True,
         omega=omega, lr_factor=lr_factor, sr_factor=sr_factor)
@@ -580,6 +580,8 @@ def _j_energy_per_atom(int3c2e_opt, dm, verbose=None):
     dm = mol.apply_C_mat_CT(dm)
     auxvec = int3c2e_opt.contract_dm(dm, hermi=1)
     naux = len(auxvec)
+    aux_loc = auxmol.ao_loc
+    largest_shell_nao = int((aux_loc[1:] - aux_loc[:-1]).max())
     t0 = log.timer_debug1('contract dm', *t0)
 
     metric_w, metric_v = _factorize_j2c(auxmol)
@@ -665,7 +667,12 @@ def _j_energy_per_atom(int3c2e_opt, dm, verbose=None):
     # ...
     mem_avail = get_avail_mem(exclude_memory_pool=True)
     word_avail = mem_avail // 8
-    batch_size = min(naux, int(word_avail*0.75) // (3*nao_pair*2))
+    # Screened AO pairs can be far fewer than nao**2, but the evaluator also
+    # needs workspace for unpacking the integral batches.
+    batch_size = int(word_avail*0.75) // (3*nao_pair*2)
+    if batch_size < largest_shell_nao:
+        raise MemoryError('Insufficient GPU memory for an auxiliary shell batch')
+    batch_size = min(64, naux, batch_size)
     blksize = min(batch_size, int(word_avail*0.15) // (3*nao**2*8) * 8)
     assert batch_size > 0 and blksize > 0
     log.debug1('mem_avail=%.3f MB, batch_size=%d, blksize=%d',
@@ -695,7 +702,9 @@ def _j_energy_per_atom(int3c2e_opt, dm, verbose=None):
         compressed_di = eval_ip1(kbatch, out=buf0)
         compressed_dk = eval_ipaux(kbatch, out=buf1)
         aux0, aux1 = aux1, aux1 + compressed_dk.shape[-1]
-        auxvec_ipaux[:,aux0:aux1] = contract('xpr,p->xr', compressed_dk, dm_compressed)
+        for x in range(3):
+            cp.dot(dm_compressed, compressed_dk[x],
+                   out=auxvec_ipaux[x,aux0:aux1])
 
         # (di/dr j|k) + (i dj/dr|k) + (i j|dk/dr) = 0
         compressed_dk += compressed_di
@@ -887,7 +896,7 @@ def _get_veff(int3c2e_opt, mo_coeff, mo_occ, j_factor=1, k_factor=1,
     if batch_size < largest_shell_nao:
         mem_req = (largest_shell_nao-batch_size) *_unit * 1.5 * 1e-6
         raise MemoryError(f'Insufficient GPU memory. Need {mem_req} MB more.')
-    batch_size = min(batch_size, max(largest_shell_nao, naux))
+    batch_size = max(largest_shell_nao, min(batch_size, 64, naux))
 
     eval_j3c, aux_sorting, _, aux_offsets, clone_context = int3c2e_opt.int3c2e_evaluator(
         aux_batch_size=batch_size, reorder_aux=True, cart=True,
