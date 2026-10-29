@@ -97,26 +97,42 @@ def eval_ao_kpts(cell, coords, kpts=None, deriv=0, relativity=0,
     coords = cp.asarray(coords.T, order='C')
     bvk_ncells = opt.bvk_ncells
     nao = cell.nao
-    out = cp.zeros((comp, bvk_ncells, nao, ngrids))
-
     drv = libpbc.PBCeval_gto_deriv
-    err = drv(ctypes.cast(out.data.ptr, ctypes.c_void_p),
-        ctypes.byref(opt.gto_envs),
-        ctypes.cast(coords.data.ptr, ctypes.c_void_p),
-        ctypes.c_int(ngrids),
-        ctypes.c_int(bvk_ncells*nao), ctypes.c_int(bvkcell.nbas),
-        ctypes.c_int(deriv), ctypes.c_int(cell.cart),
-        ctypes.cast(opt.bas_rcut.data.ptr, ctypes.c_void_p))
-    if err != 0:
-        raise RuntimeError('PBCeval_gto_deriv failed')
-
     if bvk_ncells == 1: # gamma point
-        out = out.transpose(1,0,3,2)
+        nkpts = 1
+        expLk = None
+        dtype = np.float64
     else:
         bvk_ncells, nkpts = opt.expLk.shape
         expLk = opt.expLk.view(np.float64).reshape(bvk_ncells, nkpts, 2)
-        out = contract('Lks,cLig->kcigs', expLk, out)
-        out = out.view(np.complex128)[:,:,:,:,0].transpose(0,1,3,2)
+        dtype = np.complex128
+
+    # Arbitrary k-points can require a large BvK image expansion. Process
+    # grid slices so the scratch tensor does not scale with all grid points.
+    scratch_bytes = 256 * 1024**2
+    bytes_per_grid = comp * bvk_ncells * nao * np.dtype(np.float64).itemsize
+    blksize = max(1, min(ngrids, scratch_bytes // bytes_per_grid))
+    out = cp.empty((nkpts, comp, ngrids, nao), dtype=dtype)
+    for p0 in range(0, ngrids, blksize):
+        p1 = min(p0 + blksize, ngrids)
+        block_coords = cp.ascontiguousarray(coords[:, p0:p1])
+        block = cp.zeros((comp, bvk_ncells, nao, p1-p0))
+        err = drv(ctypes.cast(block.data.ptr, ctypes.c_void_p),
+            ctypes.byref(opt.gto_envs),
+            ctypes.cast(block_coords.data.ptr, ctypes.c_void_p),
+            ctypes.c_int(p1-p0),
+            ctypes.c_int(bvk_ncells*nao), ctypes.c_int(bvkcell.nbas),
+            ctypes.c_int(deriv), ctypes.c_int(cell.cart),
+            ctypes.cast(opt.bas_rcut.data.ptr, ctypes.c_void_p))
+        if err != 0:
+            raise RuntimeError('PBCeval_gto_deriv failed')
+
+        if bvk_ncells == 1:
+            block = block.transpose(1,0,3,2)
+        else:
+            block = contract('Lks,cLig->kcigs', expLk, block)
+            block = block.view(np.complex128)[:,:,:,:,0].transpose(0,1,3,2)
+        out[:, :, p0:p1, :] = block
 
     if deriv == 0:
         out = out[:,0]
