@@ -21,6 +21,7 @@ from gpu4pyscf.lib.cupy_helper import contract
 from pyscf.dft.LebedevGrid import MakeAngularGrid
 
 MAX_GRIDS_PER_TASK = 65536
+MAX_GRID_SPIN_POINTS_PER_TASK = 500000
 
 def eval_xc_eff(func, rho_tm, deriv=1, spin_samples=770,
                 collinear_threshold=None, collinear_samples=200):
@@ -211,7 +212,7 @@ def _eval_xc_lebedev(func, rho_tm, deriv, spin_samples,
         ndim = 2
     else:
         ndim = 4
-    blksize = math.ceil(ndim*1e5 / ngrids) * 8
+    blksize = max(8, MAX_GRID_SPIN_POINTS_PER_TASK // ngrids // 8 * 8)
     exc_eff = vxc_eff = fxc_eff = kxc_eff = 0
     for p0, p1 in _prange(0, weights.size, blksize):
         nsg = p1 - p0
@@ -374,4 +375,3 @@ def _project_spin_paxis(rho_tm, sgridz=None):
             rho_ts[1] = s[:,:,cp.newaxis] * sgridz
             rho_ts = rho_ts.reshape(2, nvar, ngrids * nsg)
     return rho_ts
-
