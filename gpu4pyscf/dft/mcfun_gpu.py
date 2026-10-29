@@ -208,10 +208,6 @@ def _eval_xc_lebedev(func, rho_tm, deriv, spin_samples,
         nvar = 1
     else:
         nvar = rho_tm.shape[1]
-    if nvar >=5:
-        ndim = 2
-    else:
-        ndim = 4
     blksize = max(8, MAX_GRID_SPIN_POINTS_PER_TASK // ngrids // 8 * 8)
     exc_eff = vxc_eff = fxc_eff = kxc_eff = 0
     for p0, p1 in _prange(0, weights.size, blksize):
