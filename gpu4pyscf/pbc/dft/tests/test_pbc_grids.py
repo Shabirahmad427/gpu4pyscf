@@ -413,7 +413,11 @@ class KnownValues(unittest.TestCase):
 
         kmesh = (1,2,3)
         kpts = cell.make_kpts(kmesh)
-        mf = krks.KRKS(cell, xc="r2scan0", kpts=kpts).density_fit(auxbasis='def2-universal-jkfit')
+        # Express r2SCAN0 explicitly because the PySCF-bundled LibXC 5.2
+        # parser predates the r2SCAN0 alias. This is 25% exact exchange with
+        # 75% r2SCAN exchange and full r2SCAN correlation.
+        r2scan0 = '0.25*HF + 0.75*MGGA_X_R2SCAN + MGGA_C_R2SCAN'
+        mf = krks.KRKS(cell, xc=r2scan0, kpts=kpts).density_fit(auxbasis='def2-universal-jkfit')
         mf.grids = gen_grid.BeckeGrids(cell)
         mf.grids.atom_grid = (120,590)
         mf.conv_tol = 1e-10
@@ -426,7 +430,7 @@ class KnownValues(unittest.TestCase):
         test_gradient = get_vxc(mf._numint, cell, mf.grids, mf.xc, dm, kpts, hermi=1)
 
         # dm is not very stable, and numerical gradient is super fast
-        ref_gradient = numerical_gradient_exc_becke(cell, "r2scan0", kmesh, 'def2-universal-jkfit', (120,590), dm)
+        ref_gradient = numerical_gradient_exc_becke(cell, r2scan0, kmesh, 'def2-universal-jkfit', (120,590), dm)
 
         assert np.max(np.abs(test_gradient[:-3] - ref_gradient[:-3])) < 1e-4
         assert np.max(np.abs(test_gradient[-3:] - ref_gradient[-3:])) < 2e-3
