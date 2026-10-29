@@ -15,6 +15,7 @@
 import unittest
 import numpy as np
 from pyscf import gto
+from pyscf.dft import xcfun
 from gpu4pyscf.tdscf import uhf
 
 def cal_exact_sf_tda_gradient(mf, extype=1, collinear='mcol', collinear_samples=20, state=1):
@@ -164,7 +165,9 @@ class KnownValues(unittest.TestCase):
         cls.mol.stdout.close()
 
     def test_mcol_lda(self):
-        mf = self.mol.UKS(xc='SVWN').to_gpu().run()
+        mf = self.mol.UKS(xc='SVWN').to_gpu()
+        mf._numint.libxc = xcfun
+        mf.run()
         td = uhf.SpinFlipTDA(mf).set(extype=0, collinear='mcol', collinear_samples=20).run()
         grad_iter = td.Gradients().kernel(state=1)
         grad_exact = cal_exact_sf_tda_gradient(mf, extype=0, collinear='mcol', collinear_samples=20, state=1)
@@ -192,7 +195,9 @@ class KnownValues(unittest.TestCase):
         self.assertAlmostEqual(abs(grad_iter - ref).max(), 0, delta=1e-5)
 
     def test_col_b3lyp(self):
-        mf = self.mol.UKS(xc='B3LYP').to_gpu().run()
+        mf = self.mol.UKS(xc='B3LYP').to_gpu()
+        mf._numint.libxc = xcfun
+        mf.run()
         td = uhf.SpinFlipTDA(mf).set(extype=0, collinear='col').run()
         grad_iter = td.Gradients().kernel(state=1)
         grad_exact = cal_exact_sf_tda_gradient(mf, extype=0, collinear='col', state=1)
@@ -220,7 +225,9 @@ class KnownValues(unittest.TestCase):
         self.assertAlmostEqual(abs(grad_iter - ref).max(), 0, delta=1e-5)
 
     def test_mcol_tpss(self):
-        mf = self.mol.UKS(xc='TPSS').to_gpu().run()
+        mf = self.mol.UKS(xc='TPSS').to_gpu()
+        mf._numint.libxc = xcfun
+        mf.run()
         td = uhf.SpinFlipTDA(mf).set(extype=1, collinear='mcol', collinear_samples=20).run()
         grad_iter = td.Gradients().kernel(state=1)
         grad_exact = cal_exact_sf_tda_gradient(mf, extype=1, collinear='mcol', collinear_samples=20, state=1)

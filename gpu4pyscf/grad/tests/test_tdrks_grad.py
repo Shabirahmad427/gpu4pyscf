@@ -17,6 +17,7 @@ import numpy as np
 import unittest
 import pytest
 from pyscf import scf, dft, tdscf
+from pyscf.dft import xcfun
 import gpu4pyscf
 from gpu4pyscf import scf as gpu_scf
 from gpu4pyscf.lib.multi_gpu import num_devices
@@ -70,7 +71,9 @@ def tearDownModule():
 
 
 def benchmark_with_cpu(mol, xc, nstates=3, lindep=1.0e-12, tda=False):
-    mf = dft.RKS(mol, xc=xc).to_gpu().run()
+    mf = dft.RKS(mol, xc=xc).to_gpu()
+    mf._numint.libxc = xcfun
+    mf.run()
     if tda:
         td = mf.TDA()
     else:
@@ -86,6 +89,7 @@ def benchmark_with_cpu(mol, xc, nstates=3, lindep=1.0e-12, tda=False):
     gpu_gradient = cal_analytic_gradient(mol, td, tdgrad_gpu, nocc, nvir, tda)
 
     tdgrad_cpu = tdgrad_gpu.to_cpu()
+    tdgrad_cpu.base._scf._numint.libxc = xcfun
     cpu_gradient = cal_analytic_gradient(mol, td, tdgrad_cpu, nocc, nvir, tda)
 
     return cpu_gradient, gpu_gradient
@@ -97,6 +101,7 @@ def benchmark_with_finite_diff(
 
     mol = mol_input.copy()
     mf = dft.RKS(mol, xc=xc).to_gpu()
+    mf._numint.libxc = xcfun
     mf.grids.level = 9
     mf.grids.prune = None
     mf.run()
@@ -198,7 +203,8 @@ class KnownValues(unittest.TestCase):
 
     @unittest.skipIf(num_devices > 1, '')
     def test_grad_b3lyp_tda_singlet_cpu(self):
-        grad_gpu = _check_grad(mol, xc="b3lyp", tol=1e-9, tda=True, method="cpu")
+        # CPU XCFun and GPU LibXC differ at the 1e-9 level in third derivatives.
+        grad_gpu = _check_grad(mol, xc="b3lyp", tol=1e-8, tda=True, method="cpu")
         ref =  np.array([[-5.1102017791844e-16,  1.6869738570478e-14, 1.1759402451268e-01],
                          [ 6.5663118468910e-17,  7.4263977957198e-02, -5.8799691736934e-02],
                          [-2.7234194947580e-17, -7.4263977957215e-02, -5.8799691736946e-02]]),
@@ -247,6 +253,7 @@ class KnownValues(unittest.TestCase):
     def test_grad_b3lyp_tda_ris_zvector_solver(self):
         mf = dft.RKS(mol).to_gpu()
         mf.xc = "b3lyp"
+        mf._numint.libxc = xcfun
         mf.run()
 
         td = mf.TDA()

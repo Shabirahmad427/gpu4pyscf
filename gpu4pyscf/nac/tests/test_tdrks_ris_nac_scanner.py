@@ -17,6 +17,7 @@ import numpy as np
 import cupy as cp
 import pyscf
 from pyscf import lib, gto, scf, dft
+from pyscf.dft import xcfun
 from gpu4pyscf import tdscf, nac
 from gpu4pyscf.lib.multi_gpu import num_devices
 
@@ -48,9 +49,15 @@ def tearDownModule():
     del mol, mol1
 
 
+def _make_rks(mol, xc):
+    mf = dft.RKS(mol, xc=xc).density_fit().to_gpu()
+    mf._numint.libxc = xcfun
+    return mf
+
+
 class KnownValues(unittest.TestCase):
     def test_nac_scanner_ge(self):
-        mf = dft.RKS(mol, xc="b3lyp").to_gpu().density_fit()
+        mf = _make_rks(mol, "b3lyp")
         mf.kernel()
         td = tdscf.ris.TDA(mf=mf, nstates=5, Ktrunc = 0.0, spectra=False, single=False, gram_schmidt=True)
         td.kernel()
@@ -69,7 +76,7 @@ class KnownValues(unittest.TestCase):
 
     @unittest.skipIf(num_devices > 1, '')
     def test_nac_scanner_ee(self):
-        mf = dft.RKS(mol, xc="b3lyp").to_gpu().density_fit()
+        mf = _make_rks(mol, "b3lyp")
         mf.kernel()
         td = tdscf.ris.TDA(mf=mf, nstates=5, Ktrunc = 0.0, spectra=False, single=False, gram_schmidt=True)
         td.kernel()

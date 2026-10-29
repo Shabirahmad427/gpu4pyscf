@@ -19,6 +19,7 @@ import cupy as cp
 import pyscf
 import gpu4pyscf
 from pyscf import lib, gto, scf, dft
+from pyscf.dft import xcfun
 from gpu4pyscf import tdscf
 from gpu4pyscf.solvent.tdscf.pcm import WithSolventTDSCFGradient
 from gpu4pyscf.grad.tests.test_tdrhf_grad import diagonalize, diagonalize_tda
@@ -135,6 +136,10 @@ def cal_mf(mol, xc, solvent, unrestrict):
     mf.with_solvent.method = solvent
     mf.with_solvent.lebedev_order = 29 # 302 Lebedev grids
     mf.with_solvent.eps = 78
+    # PySCF's bundled LibXC 5.2 does not provide third derivatives, which
+    # TDDFT analytic gradients require for GGA functionals.
+    if xc.lower() == 'b3lyp':
+        mf._numint.libxc = xcfun
     mf.run()
     return mf
 
@@ -325,13 +330,19 @@ class KnownValues(unittest.TestCase):
         mol0 = gto.M(atom='H  0.  0.  1.804; F  0.  0.  0.', verbose=0, unit='B')
         mol1 = gto.M(atom='H  0.  0.  1.803; F  0.  0.  0.', verbose=0, unit='B')
         mol2 = gto.M(atom='H  0.  0.  1.805; F  0.  0.  0.', verbose=0, unit='B')
-        mf = mol0.UKS(xc='b3lyp').to_gpu().PCM().run()
+        mf = mol0.UKS(xc='b3lyp').to_gpu().PCM()
+        mf._numint.libxc = xcfun
+        mf.run()
         td = mf.TDA(equilibrium_solvation=True).run()
         g1 = td.nuc_grad_method().kernel()
 
-        mf = mol1.UKS(xc='b3lyp').to_gpu().PCM().run()
+        mf = mol1.UKS(xc='b3lyp').to_gpu().PCM()
+        mf._numint.libxc = xcfun
+        mf.run()
         td1 = mf.TDA(equilibrium_solvation=True).run()
-        mf = mol2.UKS(xc='b3lyp').to_gpu().PCM().run()
+        mf = mol2.UKS(xc='b3lyp').to_gpu().PCM()
+        mf._numint.libxc = xcfun
+        mf.run()
         td2 = mf.TDA(equilibrium_solvation=True).run()
         self.assertAlmostEqual((td2.e_tot[0]-td1.e_tot[0])/0.002, g1[0,2], 5)
 

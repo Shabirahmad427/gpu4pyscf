@@ -17,6 +17,7 @@ import numpy as np
 import unittest
 import pytest
 from pyscf import scf, dft, tdscf
+from pyscf.dft import xcfun
 import gpu4pyscf
 from gpu4pyscf import scf as gpu_scf
 from gpu4pyscf.lib.multi_gpu import num_devices
@@ -94,7 +95,9 @@ def tearDownModule():
 
 
 def benchmark_with_cpu(mol, xc, nstates=3, lindep=1.0e-12, tda=False):
-    mf = dft.UKS(mol, xc=xc).to_gpu().run()
+    mf = dft.UKS(mol, xc=xc).to_gpu()
+    mf._numint.libxc = xcfun
+    mf.run()
     if tda:
         td = mf.TDA()
     else:
@@ -113,6 +116,7 @@ def benchmark_with_cpu(mol, xc, nstates=3, lindep=1.0e-12, tda=False):
     gpu_gradient = cal_analytic_gradient(mol, td, tdgrad_gpu, nocca, nvira, noccb, nvirb, tda)
 
     tdgrad_cpu = tdgrad_gpu.to_cpu()
+    tdgrad_cpu.base._scf._numint.libxc = xcfun
     cpu_gradient = cal_analytic_gradient(mol, td, tdgrad_cpu, nocca, nvira, noccb, nvirb, tda)
 
     return cpu_gradient, gpu_gradient
@@ -124,6 +128,7 @@ def benchmark_with_finite_diff(
 
     mol = mol_input.copy()
     mf = dft.UKS(mol, xc=xc).to_gpu()
+    mf._numint.libxc = xcfun
     mf.grids.level = 9
     mf.grids.prune = None
     mf.run()
@@ -214,7 +219,7 @@ class KnownValues(unittest.TestCase):
 
     @unittest.skipIf(num_devices > 1, '')
     def test_grad_svwn_tda_spinconserving_cpu(self):
-        grad_gpu = _check_grad(mol, xc="svwn", tol=3e-9, tda=True, method="cpu")
+        grad_gpu = _check_grad(mol, xc="svwn", tol=1e-8, tda=True, method="cpu")
         ref = np.array([[-2.0794644047642e-15,  4.5819012821773e-15, -1.9469159367525e-02],
                         [ 1.4221709874715e-15,  8.7651533026291e-02, 9.7281692163176e-03],
                         [ 2.3835180549259e-16, -8.7651533026297e-02, 9.7281692163202e-03]])
@@ -237,6 +242,7 @@ class KnownValues(unittest.TestCase):
 
     @unittest.skipIf(num_devices > 1, '')
     def test_grad_camb3lyp_tddft_spinconserving_cpu(self):
+        # CPU XCFun and GPU LibXC differ by a few 1e-9 in third derivatives.
         grad_gpu = _check_grad(mol, xc="camb3lyp", tol=1e-8, lindep=1.0e-6, tda=False, method="cpu")
         ref = np.array([[ 1.2806734534785e-15,  7.1845049781507e-16, -3.2202363698306e-02],
                         [ 3.5389179533110e-16,  8.1587356526278e-02, 1.6158866805799e-02],

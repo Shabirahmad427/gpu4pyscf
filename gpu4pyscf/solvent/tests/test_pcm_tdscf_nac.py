@@ -19,6 +19,7 @@ import cupy as cp
 import pyscf
 import gpu4pyscf
 from pyscf import lib, gto, scf
+from pyscf.dft import xcfun
 from gpu4pyscf import tdscf, nac, dft
 from gpu4pyscf.solvent.tdscf.pcm import WithSolventTDSCFNacMethod
 from gpu4pyscf.grad.tests.test_tdrhf_grad import diagonalize_tda
@@ -42,6 +43,17 @@ def tearDownModule():
     del mol
 
 
+def _make_rks(mol, xc, with_df=False, pcm=False):
+    mf = dft.RKS(mol, xc=xc)
+    if with_df:
+        mf = mf.density_fit()
+    if pcm:
+        mf = mf.PCM()
+    mf = mf.to_gpu()
+    mf._numint.libxc = xcfun
+    return mf
+
+
 def get_mf(mol, mf, s, mo_coeff, method='CPCM'):
     if isinstance(mf, dft.rks.RKS):
         mf_new = dft.RKS(mol).to_gpu()
@@ -49,6 +61,7 @@ def get_mf(mol, mf, s, mo_coeff, method='CPCM'):
             mf_new = mf_new.density_fit()
         mf_new = mf_new.PCM()
         mf_new.xc = mf.xc
+        mf_new._numint.libxc = xcfun
         if len(mf.grids.atom_grid) > 0:
             mf_new.grids.atom_grid = mf.grids.atom_grid
         else:
@@ -336,7 +349,7 @@ class KnownValues(unittest.TestCase):
         """
         Compared with the reference values.
         """
-        mf = dft.RKS(mol, xc='B3LYP').PCM().to_gpu()
+        mf = _make_rks(mol, 'B3LYP', with_df=False, pcm=True)
         mf.with_solvent.method = 'IEF-PCM'
         mf.with_solvent.lebedev_order = 29 # 302 Lebedev grids
         mf.with_solvent.eps = 78
@@ -368,7 +381,7 @@ class KnownValues(unittest.TestCase):
         """
         Compared with the reference values.
         """
-        mf = dft.RKS(mol, xc='B3LYP').PCM().to_gpu()
+        mf = _make_rks(mol, 'B3LYP', with_df=False, pcm=True)
         mf.with_solvent.method = 'IEF-PCM'
         mf.with_solvent.lebedev_order = 29 # 302 Lebedev grids
         mf.with_solvent.eps = 78
@@ -465,7 +478,7 @@ class KnownValues(unittest.TestCase):
         """
         Compared with the reference values.
         """
-        mf = dft.RKS(mol, xc='b3lyp').density_fit().PCM().to_gpu()
+        mf = _make_rks(mol, 'b3lyp', with_df=True, pcm=True)
         mf.with_solvent.method = 'IEF-PCM'
         mf.with_solvent.lebedev_order = 29 # 302 Lebedev grids
         mf.with_solvent.eps = 78
@@ -498,7 +511,7 @@ class KnownValues(unittest.TestCase):
         """
         Compared with the reference values.
         """
-        mf = dft.RKS(mol, xc='b3lyp').density_fit().PCM().to_gpu()
+        mf = _make_rks(mol, 'b3lyp', with_df=True, pcm=True)
         mf.with_solvent.method = 'IEF-PCM'
         mf.with_solvent.lebedev_order = 29 # 302 Lebedev grids
         mf.with_solvent.eps = 78
@@ -530,7 +543,7 @@ class KnownValues(unittest.TestCase):
         """
         Compared with the reference values.
         """
-        mf = dft.RKS(mol, xc='camb3lyp').density_fit().PCM().to_gpu()
+        mf = _make_rks(mol, 'camb3lyp', with_df=True, pcm=True)
         mf.with_solvent.method = 'IEF-PCM'
         mf.with_solvent.lebedev_order = 29 # 302 Lebedev grids
         mf.with_solvent.eps = 78
@@ -562,7 +575,7 @@ class KnownValues(unittest.TestCase):
         """
         Compared with the reference values.
         """
-        mf = dft.RKS(mol, xc='camb3lyp').density_fit().PCM().to_gpu()
+        mf = _make_rks(mol, 'camb3lyp', with_df=True, pcm=True)
         mf.with_solvent.method = 'IEF-PCM'
         mf.with_solvent.lebedev_order = 29 # 302 Lebedev grids
         mf.with_solvent.eps = 78
@@ -594,7 +607,7 @@ class KnownValues(unittest.TestCase):
         """
         Compared with the reference values.
         """
-        mf = dft.RKS(mol, xc='tpss').density_fit().PCM().to_gpu()
+        mf = _make_rks(mol, 'tpss', with_df=True, pcm=True)
         mf.with_solvent.method = 'IEF-PCM'
         mf.with_solvent.lebedev_order = 29 # 302 Lebedev grids
         mf.with_solvent.eps = 78
@@ -626,7 +639,7 @@ class KnownValues(unittest.TestCase):
         """
         Compared with the reference values.
         """
-        mf = dft.RKS(mol, xc='tpss').density_fit().PCM().to_gpu()
+        mf = _make_rks(mol, 'tpss', with_df=True, pcm=True)
         mf.with_solvent.method = 'IEF-PCM'
         mf.with_solvent.lebedev_order = 29 # 302 Lebedev grids
         mf.with_solvent.eps = 78
@@ -776,7 +789,7 @@ class KnownValues(unittest.TestCase):
         compare with finite difference
         """
         method = "IEF-PCM"
-        mf = dft.RKS(mol, xc="b3lyp").PCM().to_gpu()
+        mf = _make_rks(mol, "b3lyp", with_df=False, pcm=True)
         mf.with_solvent.method = method
         mf.with_solvent.lebedev_order = 29 # 302 Lebedev grids
         mf.with_solvent.eps = 78
@@ -804,7 +817,7 @@ class KnownValues(unittest.TestCase):
         compare with finite difference
         """
         method = "IEF-PCM"
-        mf = dft.RKS(mol, xc="b3lyp").PCM().to_gpu()
+        mf = _make_rks(mol, "b3lyp", with_df=False, pcm=True)
         mf.with_solvent.method = method
         mf.with_solvent.lebedev_order = 29 # 302 Lebedev grids
         mf.with_solvent.eps = 78
@@ -891,7 +904,7 @@ class KnownValues(unittest.TestCase):
         compare with finite difference
         """
         method = "IEF-PCM"
-        mf = dft.RKS(mol, xc="b3lyp").density_fit().PCM().to_gpu()
+        mf = _make_rks(mol, "b3lyp", with_df=True, pcm=True)
         mf.with_solvent.method = method
         mf.with_solvent.lebedev_order = 29 # 302 Lebedev grids
         mf.with_solvent.eps = 78
@@ -919,7 +932,7 @@ class KnownValues(unittest.TestCase):
         compare with finite difference
         """
         method = "IEF-PCM"
-        mf = dft.RKS(mol, xc="b3lyp").density_fit().PCM().to_gpu()
+        mf = _make_rks(mol, "b3lyp", with_df=True, pcm=True)
         mf.with_solvent.method = method
         mf.with_solvent.lebedev_order = 29 # 302 Lebedev grids
         mf.with_solvent.eps = 78
@@ -949,7 +962,7 @@ class KnownValues(unittest.TestCase):
         compare with finite difference
         """
         method = "IEF-PCM"
-        mf = dft.RKS(mol, xc="camb3lyp").density_fit().PCM().to_gpu()
+        mf = _make_rks(mol, "camb3lyp", with_df=True, pcm=True)
         mf.with_solvent.method = method
         mf.with_solvent.lebedev_order = 29 # 302 Lebedev grids
         mf.with_solvent.eps = 78
@@ -976,7 +989,7 @@ class KnownValues(unittest.TestCase):
         compare with finite difference
         """
         method = "IEF-PCM"
-        mf = dft.RKS(mol, xc="camb3lyp").density_fit().PCM().to_gpu()
+        mf = _make_rks(mol, "camb3lyp", with_df=True, pcm=True)
         mf.with_solvent.method = method
         mf.with_solvent.lebedev_order = 29 # 302 Lebedev grids
         mf.with_solvent.eps = 78
@@ -1006,7 +1019,7 @@ class KnownValues(unittest.TestCase):
         compare with finite difference
         """
         method = "IEF-PCM"
-        mf = dft.RKS(mol, xc="tpss").density_fit().PCM().to_gpu()
+        mf = _make_rks(mol, "tpss", with_df=True, pcm=True)
         mf.with_solvent.method = method
         mf.with_solvent.lebedev_order = 29 # 302 Lebedev grids
         mf.with_solvent.eps = 78
@@ -1034,7 +1047,7 @@ class KnownValues(unittest.TestCase):
         compare with finite difference
         """
         method = "IEF-PCM"
-        mf = dft.RKS(mol, xc="tpss").density_fit().PCM().to_gpu()
+        mf = _make_rks(mol, "tpss", with_df=True, pcm=True)
         mf.with_solvent.method = method
         mf.with_solvent.lebedev_order = 29 # 302 Lebedev grids
         mf.with_solvent.eps = 78

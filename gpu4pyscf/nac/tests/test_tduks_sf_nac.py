@@ -15,7 +15,14 @@
 import unittest
 import numpy as np
 from pyscf import gto
+from pyscf.dft import xcfun
 from gpu4pyscf.tdscf import uhf
+
+
+def _run_uks(mol, xc):
+    mf = mol.UKS(xc=xc).to_gpu()
+    mf._numint.libxc = xcfun
+    return mf.run()
 
 class KnownValues(unittest.TestCase):
     @classmethod
@@ -121,7 +128,7 @@ class KnownValues(unittest.TestCase):
         H      0.937704    0.100000   -0.513544
         '''
         mol = gto.M(atom=atom, charge=0, spin=2, basis='cc-pvdz', verbose=0)
-        mf = mol.UKS(xc='B3LYP').to_gpu().run()
+        mf = _run_uks(mol, 'B3LYP')
         td = uhf.SpinFlipTDHF(mf).set(extype=1, collinear='mcol', collinear_samples=20).run()
         tdnac = td.NAC()
         tdnac.kernel(states=(1, 3))
@@ -144,7 +151,7 @@ class KnownValues(unittest.TestCase):
         self.assertAlmostEqual(abs(abs(tdnac.de_etf) - abs(B3LYP_REF_ETF)).max(), 0, delta=1e-5)
 
     def test_mcol_lda(self):
-        mf = self.mol.UKS(xc='SVWN').to_gpu().run()
+        mf = _run_uks(self.mol, 'SVWN')
         td = uhf.SpinFlipTDA(mf).set(extype=1, collinear='mcol', collinear_samples=20).run()
         tdnac = td.NAC()
         tdnac.kernel(states=(1, 3))
@@ -162,7 +169,7 @@ class KnownValues(unittest.TestCase):
         self.assertAlmostEqual(abs(abs(tdnac.de_etf) - abs(ref_de_etf)).max(), 0, delta=1e-5)
 
     def test_mcol_tpss(self):
-        mf = self.mol.UKS(xc='TPSS').to_gpu().run()
+        mf = _run_uks(self.mol, 'TPSS')
         td = uhf.SpinFlipTDA(mf).set(extype=1, collinear='mcol', collinear_samples=20).run()
         tdnac = td.NAC()
         tdnac.kernel(states=(1, 3))
@@ -180,7 +187,7 @@ class KnownValues(unittest.TestCase):
         self.assertAlmostEqual(abs(abs(tdnac.de_etf) - abs(ref_de_etf)).max(), 0, delta=1e-5)
 
     def test_mcol_cam(self):
-        mf = self.mol.UKS(xc='CAM-B3LYP').to_gpu().run()
+        mf = _run_uks(self.mol, 'camb3lyp')
         td = uhf.SpinFlipTDA(mf).set(extype=1, collinear='mcol', collinear_samples=20).run()
         tdnac = td.NAC()
         tdnac.kernel(states=(1, 3))

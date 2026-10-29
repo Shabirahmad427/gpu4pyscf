@@ -17,6 +17,7 @@ import numpy as np
 import unittest
 import pytest
 from pyscf import scf, dft, tdscf
+from pyscf.dft import xcfun
 import gpu4pyscf
 from gpu4pyscf import scf as gpu_scf
 from gpu4pyscf.grad.tests.test_tdrhf_grad import diagonalize, diagonalize_tda
@@ -73,6 +74,9 @@ def cal_mf(mol, xc):
         mf = scf.RHF(mol).density_fit(auxbasis='def2-universal-jkfit').to_gpu()
     else:
         mf = dft.RKS(mol, xc=xc).density_fit(auxbasis='def2-universal-jkfit').to_gpu()
+        # TDDFT nuclear gradients require third-order XC derivatives.  PySCF's
+        # LibXC backend does not provide these for the functionals tested here.
+        mf._numint.libxc = xcfun
         mf.grids.level=6
         mf.grids.prune = None
     mf.run()
@@ -195,6 +199,7 @@ class KnownValues(unittest.TestCase):
     def test_grad_b3lyp_tda_ris_zvector_solver(self):
         mf = dft.RKS(mol).density_fit().to_gpu()
         mf.xc = "b3lyp"
+        mf._numint.libxc = xcfun
         mf.run()
 
         td = mf.TDA()

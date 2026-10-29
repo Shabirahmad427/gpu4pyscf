@@ -17,6 +17,7 @@ import pytest
 import numpy as np
 import pyscf
 import gpu4pyscf
+from pyscf.dft import xcfun
 from gpu4pyscf.tdscf import ris
 
 def numerical_tddft_gradient(mol, get_energy, dx = 1e-4):
@@ -71,6 +72,7 @@ class KnownValues(unittest.TestCase):
         gpu4pyscf.scf.hf.overlap_zero_eigenvalue_threshold = 1e-3
 
         mf = mol.RKS(xc = "PBE0").density_fit(auxbasis = "def2-universal-jkfit").to_gpu()
+        mf._numint.libxc = xcfun
         mf.grids.atom_grid = (99,590)
         mf.grids.radi_method = gpu4pyscf.dft.radi.euler_macLaurin
         mf.grids.prune = None
@@ -330,6 +332,7 @@ class KnownValues(unittest.TestCase):
         gpu4pyscf.scf.hf.overlap_zero_eigenvalue_threshold = 1e-3
 
         mf = mol.RKS(xc = "PBE0").density_fit(auxbasis = "def2-universal-jkfit").to_gpu()
+        mf._numint.libxc = xcfun
         mf.grids.atom_grid = (50,194)
         mf.conv_tol = 1e-10
         test_scf_energy = mf.kernel()
@@ -389,6 +392,7 @@ class KnownValues(unittest.TestCase):
         gpu4pyscf.scf.hf.overlap_zero_eigenvalue_threshold = 1e-4
 
         mf = mol.RKS(xc = "PBE0").density_fit(auxbasis = "def2-universal-jkfit").to_gpu()
+        mf._numint.libxc = xcfun
         mf.grids.atom_grid = (50,194)
         mf.conv_tol = 1e-10
         test_scf_energy = mf.kernel()
