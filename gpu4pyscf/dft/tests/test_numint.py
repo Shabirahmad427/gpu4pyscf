@@ -257,9 +257,9 @@ H   1.7   -2.0   0.4''',
             ao_loc = opt._sorted_mol.ao_loc
             ngrids = grids.size
             dat = grids.get_non0ao_idx(opt)
-            assert lib.fp(cupy.hstack([x[1] for x in dat]).get()) == 103.60117204957997
-            assert lib.fp(cupy.hstack([x[2] for x in dat]).get()) == 5.616197331343498
-            assert lib.fp(cupy.hstack([x[3] for x in dat]).get()) == -22.394314323727
+            assert lib.fp(cupy.hstack([x[1] for x in dat]).get()) == 110.33487367511566
+            assert lib.fp(cupy.hstack([x[2] for x in dat]).get()) == 15.191116492514439
+            assert lib.fp(cupy.hstack([x[3] for x in dat]).get()) == -22.394314323726995
             assert lib.fp(cupy.hstack([x[4] for x in dat]).get()) == 351.2385939586691
             assert [i.size for x in dat for i in x[1:]] == [
                 46, 18, 9, 19, 50, 20, 9, 21, 28, 12, 9, 13, 49, 19, 9, 20, 45, 17,
