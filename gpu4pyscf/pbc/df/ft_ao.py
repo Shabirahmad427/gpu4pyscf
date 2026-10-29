@@ -73,11 +73,11 @@ def ft_aopair_kpts(cell, Gv, q=None, kptjs=None):
     kmesh = kpts_to_kmesh(cell, kptjs)
     bvk_ncells = int(np.prod(kmesh))
     nao = cell.nao_nr()
-    bytes_per_gv = nao**2 * bvk_ncells * np.dtype(np.complex128).itemsize
+    nkpts = 1 if kptjs is None else len(kptjs)
+    bytes_per_gv = nkpts * nao**2 * bvk_ncells * np.dtype(np.complex128).itemsize
     scratch_bytes = 512 * 1024**2
     blksize = max(1, min(len(Gv), scratch_bytes // bytes_per_gv))
     if blksize < len(Gv):
-        nkpts = 1 if kptjs is None else len(kptjs)
         out = cp.empty((nkpts, len(Gv), nao, nao), dtype=np.complex128)
         for p0 in range(0, len(Gv), blksize):
             p1 = min(p0 + blksize, len(Gv))
