@@ -84,6 +84,26 @@ class KnownValues(unittest.TestCase):
         self.assertAlmostEqual(mp_gpu.e_corr, -0.08095767866785737, 8)
         self.assertAlmostEqual(mp_gpu.e_corr, mp_frz.e_corr, 8)
 
+    def test_dfump2_rohf_reference(self):
+        # ROHF orbitals are not UHF-canonical. PySCF UMP2 rebuilds the Fock
+        # matrix and adds first-order singles; the GPU result must match.
+        mol_oh = pyscf.gto.M(atom='O 0 0 0; H 0 0 0.97', basis='cc-pvdz', spin=1,
+                             output='/dev/null')
+        mf_cpu = pyscf.scf.ROHF(mol_oh).run(conv_tol=1e-12)
+        mf_gpu = gpu4pyscf.scf.ROHF(mol_oh).run(conv_tol=1e-12)
+        for frozen in (None, 1):
+            ref = pyscf.mp.UMP2(mf_cpu, frozen=frozen).density_fit(auxbasis='cc-pvdz-ri').run()
+            assert abs(ref.e_corr_singles) > 1e-3
+            for mf_ref in (mf_gpu, mf_gpu.to_uhf()):
+                mp_gpu = gpu4pyscf.mp.dfump2.DFUMP2(mf_ref, frozen=frozen, auxbasis='cc-pvdz-ri').run()
+                assert abs(mp_gpu.e_corr - ref.e_corr) < 1e-7
+                assert abs(mp_gpu.e_corr_singles - ref.e_corr_singles) < 1e-7
+        mp_t2 = gpu4pyscf.mp.dfump2.DFUMP2(mf_gpu, auxbasis='cc-pvdz-ri')
+        mp_t2.with_t2 = True
+        with self.assertRaises(NotImplementedError):
+            mp_t2.run()
+        mol_oh.stdout.close()
+
     def test_scf_from_gpu(self):
         mf_gpu = gpu4pyscf.scf.UHF(mol).density_fit().run(conv_tol=1e-13)
         mp_gpu = gpu4pyscf.mp.dfump2.DFUMP2(mf_gpu, auxbasis='def2-TZVPP-ri').run()

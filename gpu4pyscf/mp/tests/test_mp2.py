@@ -22,6 +22,7 @@ from pyscf import scf
 from pyscf import ao2mo
 from pyscf import mp as mp_cpu
 from gpu4pyscf import mp as mp_gpu
+import gpu4pyscf.scf
 
 def setUpModule():
     global mol, mf
@@ -167,6 +168,23 @@ class KnownValues(unittest.TestCase):
         pt.with_df = mf.to_gpu().density_fit('weigend').with_df
         e = pt.kernel()[0]
         self.assertAlmostEqual(e, -0.14708846352674113, 8)
+
+    def test_rohf_reference_rejected_by_closed_shell_mp2(self):
+        import gpu4pyscf.mp.dfmp2
+        mol_oh = gto.M(atom='O 0 0 0; H 0 0 0.97', basis='sto-3g', spin=1, output='/dev/null')
+        mf_rohf = gpu4pyscf.scf.ROHF(mol_oh).run()
+        with self.assertRaises(NotImplementedError):
+            mf_rohf.MP2()
+        with self.assertRaises(NotImplementedError):
+            gpu4pyscf.mp.dfmp2.DFMP2(mf_rohf)
+        mol_oh.stdout.close()
+
+        # Closed-shell ROHF is equivalent to RHF and must keep working.
+        mol_cs = gto.M(atom='O 0 0 0; H 0 0 0.96; H 0.93 0 -0.24', basis='sto-3g', output='/dev/null')
+        e_rohf = gpu4pyscf.scf.ROHF(mol_cs).run(conv_tol=1e-12).MP2().kernel()[0]
+        e_rhf = gpu4pyscf.scf.RHF(mol_cs).run(conv_tol=1e-12).MP2().kernel()[0]
+        self.assertAlmostEqual(float(e_rohf), float(e_rhf), 8)
+        mol_cs.stdout.close()
 
     def test_to_cpu(self):
         pt = mp_gpu.mp2.MP2(mf.to_gpu())

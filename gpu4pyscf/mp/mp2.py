@@ -237,9 +237,18 @@ class MP2Base(lib.StreamObject):
         'e_corr_ss', 'e_corr_os', 't2',
     }
 
+    # Restricted closed-shell MP2 classes must not accept open-shell references.
+    _supports_rohf = False
+
     def __init__(self, mf, frozen=None, mo_coeff=None, mo_occ=None):
         if mo_coeff is None: mo_coeff = mf.mo_coeff
         if mo_occ is None: mo_occ = mf.mo_occ
+        # Closed-shell ROHF is equivalent to RHF; only open shells are rejected.
+        if (mf.istype('ROHF') and not self._supports_rohf
+                and mo_occ is not None and bool((cupy.asarray(mo_occ) == 1).any())):
+            raise NotImplementedError(
+                f'{self.__class__.__name__} is closed-shell MP2 and does not support '
+                'open-shell ROHF references. Use gpu4pyscf.mp.dfump2.DFUMP2(mf) instead.')
 
         self.mol = mf.mol
         self._scf = mf
